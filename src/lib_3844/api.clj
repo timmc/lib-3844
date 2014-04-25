@@ -2,56 +2,33 @@
 
 ;; Sample fns and methods
 
-(defn do-foo
+(defn do-foo ;; we'd like to alias this as a method
   ([a b]
      (println "binary called"))
-  ([a b c]
-     (println "ternary called")))
+  (^long [a ^"[Ljava.lang.Object;" b c] ;; demonstrate type annotations
+         (println "ternary called")
+         12345 ;; gotta return something for that ^long
+         ))
 
-(defn -manualFoo
+(defn -manualFoo ;; something we'll alias manually
   [a b]
   (do-foo a b))
 
 
 ;; The macro
 
-
-;; First attempt, doesn't declare methods as required. Probably would
-;; need an ns block containing (:gen-class :name foo.bar.Baz
-;; :implements foo.bar.IBaz) where IBaz specifies the methods.
-#_
-(defmacro class-alias
-  [prefix & fm-paired]
-  (when-not (symbol? prefix)
-    (throw (IllegalArgumentException. "Prefix must be a symbol.")))
-  (when-not (every? symbol fm-paired)
-    (throw (IllegalArgumentException. "Function and method names must be symbols.")))
-  (when-not (even? (count fm-paired))
-    (throw (IllegalArgumentException. "Must have even number of function and method names.")))
-  (cons 'do
-        (for [[f m] (partition 2 fm-paired)]
-          (let [m (symbol (str (name prefix) (name m)))
-                f-meta (meta (resolve f))
-                doc-add (format "(Method alias of `%s` function accepting nil for `this`.)" (name f))
-                doc (if-let [f-doc (:doc f-meta)]
-                      (str f-doc "\n" doc-add)
-                      doc-add)]
-            (when (:macro f-meta)
-              (throw (IllegalArgumentException. (str "Cannot alias a macro: " f))))
-            `(defn ~m
-               ~doc
-               ~@(for [arglist (:arglists f-meta)]
-                   `([this# ~@arglist] (~f ~@arglist))))))))
-
-;; Second attempt, carrying its own gen-class.
 (defmacro gen-class-alias
-  [gen-class-options & fm-paired]
-  (when-not (every? symbol fm-paired)
+  "Provide a map of gen-class options followed by alternating method
+and function symbols (without method prefixes) for aliasing and
+adding to the gen-class."
+  [gen-class-options & mf-paired]
+  (when-not (every? symbol mf-paired)
     (throw (IllegalArgumentException. "Function and method names must be symbols.")))
-  (when-not (even? (count fm-paired))
-    (throw (IllegalArgumentException. "Must have even number of function and method names.")))
-  (let [prefix (:prefix gen-class-options)
-        mappings (for [[f m] (partition 2 fm-paired)]
+  (when-not (even? (count mf-paired))
+    (throw (IllegalArgumentException. "Must have even number of method and function names.")))
+  (let [get-tag #(or (:tag (meta %)) 'java.lang.Object)
+        prefix (:prefix gen-class-options)
+        mappings (for [[m f] (partition 2 mf-paired)]
                    (let [mp (symbol (str prefix (name m)))
                          f-meta (meta (resolve f))
                          doc-add (format "(Method alias of `%s` function accepting nil for `this`.)"
@@ -65,11 +42,10 @@
                                ~doc
                                ~@(for [arglist (:arglists f-meta)]
                                    `([this# ~@arglist] (~f ~@arglist))))
-                      :method-specs (let [ret-type (or (:tag f-meta) 'java.lang.Object)]
-                                      (for [arglist (:arglists f-meta)]
-                                        (let [params (vec (map #(or (:tag (meta %)) 'java.lang.Object)
-                                                               arglist))]
-                                          [m params ret-type])))}))]
+                      :method-specs (for [arglist (:arglists f-meta)]
+                                      (let [ret-type (get-tag arglist)
+                                            params (vec (map get-tag arglist))]
+                                        [m params ret-type]))}))]
     `(~'do
        ;; Emit prefixed methods
        ~@(map :defn mappings)
@@ -82,5 +58,5 @@
  {:prefix "-"
   :name foo.bar.Baz
   :methods [[manualFoo [Object Object] Object]]}
- do-foo doFoo)
+ doFoo do-foo)
 

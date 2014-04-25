@@ -7,4 +7,4 @@
   ;; Demonstrate Clojure call with nil `this`
   (api/-doFoo nil 1 2)
   ;; Demonstrate Java call with instance
-  (.doFoo (foo.bar.Baz.) 1 2 3))
+  (.doFoo (foo.bar.Baz.) 1 (to-array []) 3))
