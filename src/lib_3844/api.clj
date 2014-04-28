@@ -1,21 +1,6 @@
 (ns lib-3844.api)
 
-;; Sample fns and methods
-
-(defn do-foo ;; we'd like to alias this as a method
-  ([a b]
-     (println "binary called"))
-  (^long [a ^"[Ljava.lang.Object;" b c] ;; demonstrate type annotations
-         (println "ternary called")
-         12345 ;; gotta return something for that ^long
-         ))
-
-(defn -manualFoo ;; something we'll alias manually
-  [a b]
-  (do-foo a b))
-
-
-;; The macro
+;; The macro, which would be off in some utility library
 
 (defmacro gen-class-alias
   "Provide a map of gen-class options followed by alternating method
@@ -54,9 +39,25 @@ adding to the gen-class."
               options (apply update-in gen-class-options [:methods] (fnil conj []) more-methods)]
           `(gen-class ~@(mapcat identity options))))))
 
+;; Sample fns and methods
+
+(defn do-foo ;; we'd like to alias this as a method
+  ([a b]
+     (println "arity 2 called"))
+  (^long [a ^"[Ljava.lang.Object;" b c] ;; demonstrate type annotations
+         (println "arity 3 called")
+         12345 ;; gotta return something for that ^long
+         ))
+
+(defn -manualMethod ;; something we'll export manually
+  [_ a b]
+  (println "Called manualMethod arity 2 fn with" a b))
+
+;; Exporting the methods
+
 (gen-class-alias
  {:prefix "-"
   :name foo.bar.Baz
-  :methods [[manualFoo [Object Object] Object]]}
+  :methods [[manualMethod [Object Object] Object]]}
  doFoo do-foo)
 
